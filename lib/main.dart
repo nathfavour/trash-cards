@@ -14,7 +14,10 @@ class CryptoCardsApp extends StatelessWidget {
         brightness: Brightness.dark,
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
-        accentColor: Colors.pinkAccent,
+        colorScheme: ColorScheme.dark(
+          primary: Colors.blue,
+          secondary: Colors.pinkAccent,
+        ),
         scaffoldBackgroundColor: Colors.black,
         appBarTheme: AppBarTheme(
           backgroundColor: Colors.transparent,

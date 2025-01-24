@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'widgets.dart';
 
+enum Direction {
+  left,
+  right,
+}
+
 class HomeScreen extends StatefulWidget {
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -10,6 +15,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late PageController _pageController;
   double currentPage = 0;
   int currentCardIndex = 0;
+  late AnimationController _slideController;
+  late AnimationController _scaleController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
+  double _dragOffset = 0;
+
   List<Map<String, String>> cryptoCards = [
     {
       'coin': 'BTC',
@@ -36,6 +47,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       'network': 'Solana',
       'address': '5Kd3NBUAdUnEJ9VY6RasZCtg9k3R8ZXWVcvG7bjqB2uE'
     },
+    {'coin': 'DOT', 'network': 'Polkadot', 'address': '1ABC...'},
+    {'coin': 'ADA', 'network': 'Cardano', 'address': 'addr1...'},
+    {'coin': 'AVAX', 'network': 'Avalanche', 'address': '0x789...'},
   ];
 
   @override
@@ -49,6 +63,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           currentPage = _pageController.page ?? 0;
         });
       });
+    _slideController = AnimationController(
+      duration: Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _scaleController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset(1.5, 0.0),
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+    _scaleAnimation = Tween<double>(
+      begin: 0.9,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.easeOutCubic,
+    ));
   }
 
   @override
@@ -66,43 +102,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   _buildAppBar(),
                   Expanded(
                     child: Stack(
-                      children: List.generate(cryptoCards.length, (index) {
-                        if (index < currentCardIndex) {
-                          return Container(); // Hide cards that have been swiped
-                        }
-                        return Positioned(
-                          top: 20.0 + (index * 10),
-                          left: 20.0 + (index * 10),
-                          right: 20.0 + (index * 10),
-                          child: GestureDetector(
-                            onHorizontalDragEnd: (details) {
-                              if (details.primaryVelocity! > 0) {
-                                _swipeCard(Direction.right);
-                              } else if (details.primaryVelocity! < 0) {
-                                _swipeCard(Direction.left);
-                              }
-                            },
-                            child: TweenAnimationBuilder(
-                              tween: Tween<double>(
-                                  begin: 1.0,
-                                  end: index == currentCardIndex ? 1.0 : 0.9),
-                              duration: Duration(milliseconds: 300),
-                              builder: (context, double value, child) {
-                                return Transform.scale(
-                                  scale: value,
-                                  child: CryptoCard(
-                                    coinName: cryptoCards[index]['coin']!,
-                                    network: cryptoCards[index]['network']!,
-                                    address: cryptoCards[index]['address']!,
-                                    rotationAngle: 0.0,
-                                    scale: 1.0,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        );
-                      }).reversed.toList(),
+                      alignment: Alignment.center,
+                      children: List.generate(
+                        cryptoCards.length,
+                        (index) => _buildAnimatedCard(index),
+                      ).reversed.toList(),
                     ),
                   ),
                   _buildQuickActions(),
@@ -114,6 +118,83 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  Widget _buildAnimatedCard(int index) {
+    if (index < currentCardIndex) return Container();
+
+    final offset = index - currentCardIndex;
+    final topOffset = 20.0 + (offset * 25.0);
+    final scale = 1.0 - (offset * 0.05);
+    final rotation = (offset * -3.0) * (pi / 180.0);
+
+    return Positioned(
+      top: topOffset,
+      child: Transform(
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.001)
+          ..rotateZ(rotation)
+          ..scale(scale),
+        alignment: Alignment.topCenter,
+        child: GestureDetector(
+          onHorizontalDragUpdate: (details) =>
+              _handleDragUpdate(details, index),
+          onHorizontalDragEnd: (details) => _handleDragEnd(details, index),
+          child: AnimatedBuilder(
+            animation: _slideController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(_dragOffset, 0),
+                child: Opacity(
+                  opacity: 1.0 - (_slideController.value * offset * 0.3),
+                  child: CryptoCard(
+                    coinName: cryptoCards[index]['coin']!,
+                    network: cryptoCards[index]['network']!,
+                    address: cryptoCards[index]['address']!,
+                    rotationAngle: rotation,
+                    scale: scale,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details, int index) {
+    if (index != currentCardIndex) return;
+    setState(() {
+      _dragOffset += details.delta.dx;
+      // Add parallax effect to background
+      _updateParallaxOffset(_dragOffset);
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details, int index) {
+    if (index != currentCardIndex) return;
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    if (velocity.abs() > 1000 || _dragOffset.abs() > 100) {
+      _animateCardOut(velocity > 0 ? Direction.right : Direction.left);
+    } else {
+      _resetCard();
+    }
+  }
+
+  void _animateCardOut(Direction direction) {
+    _slideController.forward().then((_) {
+      setState(() {
+        currentCardIndex++;
+        _dragOffset = 0;
+      });
+      _slideController.reset();
+      _scaleController.forward();
+    });
+  }
+
+  void _resetCard() {
+    setState(() => _dragOffset = 0);
   }
 
   void _swipeCard(Direction direction) {
