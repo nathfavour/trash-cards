@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'widgets.dart';
+import 'dart:math';
 
 enum Direction {
   left,
   right,
+}
+
+class CryptoSection {
+  final String crypto;
+  final List<Map<String, String>> wallets;
+
+  CryptoSection({required this.crypto, required this.wallets});
 }
 
 class HomeScreen extends StatefulWidget {
@@ -12,57 +20,48 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late PageController _pageController;
-  double currentPage = 0;
-  int currentCardIndex = 0;
   late AnimationController _slideController;
   late AnimationController _scaleController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _scaleAnimation;
   double _dragOffset = 0;
+  bool _isBottomExpanded = false;
 
-  List<Map<String, String>> cryptoCards = [
-    {
-      'coin': 'BTC',
-      'network': 'Bitcoin',
-      'address': '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
-    },
-    {
-      'coin': 'ETH',
-      'network': 'Ethereum',
-      'address': '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
-    },
-    {
-      'coin': 'ARB',
-      'network': 'Arbitrum',
-      'address': '0x1234567890abcdef1234567890abcdef12345678'
-    },
-    {
-      'coin': 'LTC',
-      'network': 'Litecoin',
-      'address': 'LcHK4bsEi6Xm9jHRUWBN2ZwBQcjLBqE8NJ'
-    },
-    {
-      'coin': 'SOL',
-      'network': 'Solana',
-      'address': '5Kd3NBUAdUnEJ9VY6RasZCtg9k3R8ZXWVcvG7bjqB2uE'
-    },
-    {'coin': 'DOT', 'network': 'Polkadot', 'address': '1ABC...'},
-    {'coin': 'ADA', 'network': 'Cardano', 'address': 'addr1...'},
-    {'coin': 'AVAX', 'network': 'Avalanche', 'address': '0x789...'},
+  List<CryptoSection> cryptoSections = [
+    CryptoSection(crypto: 'BTC', wallets: [
+      {
+        'coin': 'BTC',
+        'network': 'Bitcoin',
+        'address': '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+      },
+      {
+        'coin': 'BTC',
+        'network': 'Bitcoin',
+        'address': '1BoatSLRHtKNngkdXEeobR76b53LETtpyT'
+      },
+      // Add more BTC wallets here
+    ]),
+    CryptoSection(crypto: 'ETH', wallets: [
+      {
+        'coin': 'ETH',
+        'network': 'Ethereum',
+        'address': '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+      },
+      {
+        'coin': 'ETH',
+        'network': 'Ethereum',
+        'address': '0x53d284357ec70cE289D6D64134DfAc8E511c8a3D'
+      },
+      // Add more ETH wallets here
+    ]),
+    // Add more sections for ARB, LTC, SOL, etc.
   ];
+
+  int _expandedSectionIndex = -1;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(
-      viewportFraction: 0.8,
-      initialPage: 0,
-    )..addListener(() {
-        setState(() {
-          currentPage = _pageController.page ?? 0;
-        });
-      });
     _slideController = AnimationController(
       duration: Duration(milliseconds: 500),
       vsync: this,
@@ -88,6 +87,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void dispose() {
+    _slideController.dispose();
+    _scaleController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
@@ -101,16 +107,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   _buildAppBar(),
                   Expanded(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: List.generate(
-                        cryptoCards.length,
-                        (index) => _buildAnimatedCard(index),
-                      ).reversed.toList(),
+                    child: ListView.builder(
+                      itemCount: cryptoSections.length,
+                      itemBuilder: (context, sectionIndex) {
+                        return _buildCryptoSection(sectionIndex);
+                      },
                     ),
                   ),
-                  _buildQuickActions(),
-                  _buildBottomBar(),
+                  _buildBottomSheet(),
                 ],
               ),
             ),
@@ -120,76 +124,91 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAnimatedCard(int index) {
-    if (index < currentCardIndex) return Container();
-
-    final offset = index - currentCardIndex;
-    final topOffset = 20.0 + (offset * 25.0);
-    final scale = 1.0 - (offset * 0.05);
-    final rotation = (offset * -3.0) * (pi / 180.0);
-
-    return Positioned(
-      top: topOffset,
-      child: Transform(
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.001)
-          ..rotateZ(rotation)
-          ..scale(scale),
-        alignment: Alignment.topCenter,
-        child: GestureDetector(
-          onHorizontalDragUpdate: (details) =>
-              _handleDragUpdate(details, index),
-          onHorizontalDragEnd: (details) => _handleDragEnd(details, index),
-          child: AnimatedBuilder(
-            animation: _slideController,
-            builder: (context, child) {
-              return Transform.translate(
-                offset: Offset(_dragOffset, 0),
-                child: Opacity(
-                  opacity: 1.0 - (_slideController.value * offset * 0.3),
-                  child: CryptoCard(
-                    coinName: cryptoCards[index]['coin']!,
-                    network: cryptoCards[index]['network']!,
-                    address: cryptoCards[index]['address']!,
-                    rotationAngle: rotation,
-                    scale: scale,
-                  ),
-                ),
-              );
-            },
+  Widget _buildCryptoSection(int sectionIndex) {
+    final section = cryptoSections[sectionIndex];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Text(
+              section.crypto,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-        ),
+          SizedBox(height: 10),
+          Container(
+            height: 220,
+            child: Stack(
+              children: List.generate(section.wallets.length, (index) {
+                if (index < 0) return Container();
+                return Positioned(
+                  top: index * 15.0,
+                  left: index * 10.0,
+                  right: index * 10.0,
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) =>
+                        _handleDragUpdate(details, sectionIndex, index),
+                    onHorizontalDragEnd: (details) =>
+                        _handleDragEnd(details, sectionIndex, index),
+                    child: AnimatedBuilder(
+                      animation: _slideController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(_dragOffset, 0),
+                          child: Opacity(
+                            opacity: 1.0 - (_slideController.value * 0.5),
+                            child: CryptoCard(
+                              coinName: section.wallets[index]['coin']!,
+                              network: section.wallets[index]['network']!,
+                              address: section.wallets[index]['address']!,
+                              rotationAngle: 0.0,
+                              scale: 1.0,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              }).reversed.toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _handleDragUpdate(DragUpdateDetails details, int index) {
-    if (index != currentCardIndex) return;
+  void _handleDragUpdate(
+      DragUpdateDetails details, int sectionIndex, int cardIndex) {
     setState(() {
       _dragOffset += details.delta.dx;
-      // Add parallax effect to background
-      _updateParallaxOffset(_dragOffset);
     });
   }
 
-  void _handleDragEnd(DragEndDetails details, int index) {
-    if (index != currentCardIndex) return;
+  void _handleDragEnd(DragEndDetails details, int sectionIndex, int cardIndex) {
     final velocity = details.velocity.pixelsPerSecond.dx;
     if (velocity.abs() > 1000 || _dragOffset.abs() > 100) {
-      _animateCardOut(velocity > 0 ? Direction.right : Direction.left);
+      _animateCardOut(velocity > 0 ? Direction.right : Direction.left,
+          sectionIndex, cardIndex);
     } else {
       _resetCard();
     }
   }
 
-  void _animateCardOut(Direction direction) {
+  void _animateCardOut(Direction direction, int sectionIndex, int cardIndex) {
     _slideController.forward().then((_) {
       setState(() {
-        currentCardIndex++;
+        cryptoSections[sectionIndex].wallets.removeAt(cardIndex);
         _dragOffset = 0;
       });
       _slideController.reset();
-      _scaleController.forward();
     });
   }
 
@@ -197,11 +216,60 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _dragOffset = 0);
   }
 
-  void _swipeCard(Direction direction) {
-    setState(() {
-      currentCardIndex++;
-    });
-    // Add swipe out animation based on direction if needed
+  Widget _buildBottomSheet() {
+    return GestureDetector(
+      onVerticalDragUpdate: (details) {
+        if (details.delta.dy < -10 && !_isBottomExpanded) {
+          setState(() {
+            _isBottomExpanded = true;
+          });
+        } else if (details.delta.dy > 10 && _isBottomExpanded) {
+          setState(() {
+            _isBottomExpanded = false;
+          });
+        }
+      },
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 300),
+        height: _isBottomExpanded ? 250 : 100,
+        decoration: BoxDecoration(
+          color: Colors.blueGrey[900]?.withOpacity(0.8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: EdgeInsets.symmetric(vertical: 10),
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.white54,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            _isBottomExpanded
+                ? _buildExpandedQuickActions()
+                : _buildQuickActions(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: GridView.count(
+        crossAxisCount: 2,
+        children: [
+          _buildQuickActionTile(Icons.info, 'Details'),
+          _buildQuickActionTile(Icons.block, 'Block'),
+          _buildQuickActionTile(Icons.refresh, 'Refresh'),
+          _buildQuickActionTile(Icons.delete, 'Delete'),
+          // Add more actions here
+        ],
+      ),
+    );
   }
 
   Widget _buildQuickActions() {
