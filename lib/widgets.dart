@@ -35,9 +35,9 @@ class CryptoCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black26,
-              blurRadius: 15,
-              offset: Offset(0, 10),
+              color: Colors.black45,
+              blurRadius: 20,
+              offset: Offset(0, 15),
             ),
           ],
         ),
@@ -50,8 +50,15 @@ class CryptoCard extends StatelessWidget {
                 coinName,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 10,
+                      color: Colors.black26,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
                 ),
               ),
               Spacer(),
@@ -59,7 +66,8 @@ class CryptoCard extends StatelessWidget {
                 network,
                 style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 16,
+                  fontSize: 18,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
               SizedBox(height: 8),
@@ -67,8 +75,8 @@ class CryptoCard extends StatelessWidget {
                 address,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
-                  letterSpacing: 1.2,
+                  fontSize: 16,
+                  letterSpacing: 1.4,
                 ),
               ),
             ],
@@ -81,11 +89,17 @@ class CryptoCard extends StatelessWidget {
   List<Color> _getCardColors(String coin) {
     switch (coin) {
       case 'BTC':
-        return [Colors.orange[800]!, Colors.orange[400]!];
+        return [Colors.orangeAccent, Colors.deepOrange];
       case 'ETH':
-        return [Colors.blue[800]!, Colors.blue[400]!];
+        return [Colors.blueAccent, Colors.lightBlue];
+      case 'ARB':
+        return [Colors.greenAccent, Colors.teal];
+      case 'LTC':
+        return [Colors.grey, Colors.blueGrey];
+      case 'SOL':
+        return [Colors.purpleAccent, Colors.deepPurple];
       default:
-        return [Colors.purple[800]!, Colors.purple[400]!];
+        return [Colors.pinkAccent, Colors.purple];
     }
   }
 }

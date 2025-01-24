@@ -9,6 +9,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late PageController _pageController;
   double currentPage = 0;
+  int currentCardIndex = 0;
   List<Map<String, String>> cryptoCards = [
     {
       'coin': 'BTC',
@@ -20,7 +21,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       'network': 'Ethereum',
       'address': '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
     },
-    // Add more cards here
+    {
+      'coin': 'ARB',
+      'network': 'Arbitrum',
+      'address': '0x1234567890abcdef1234567890abcdef12345678'
+    },
+    {
+      'coin': 'LTC',
+      'network': 'Litecoin',
+      'address': 'LcHK4bsEi6Xm9jHRUWBN2ZwBQcjLBqE8NJ'
+    },
+    {
+      'coin': 'SOL',
+      'network': 'Solana',
+      'address': '5Kd3NBUAdUnEJ9VY6RasZCtg9k3R8ZXWVcvG7bjqB2uE'
+    },
   ];
 
   @override
@@ -50,29 +65,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   _buildAppBar(),
                   Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: cryptoCards.length,
-                      itemBuilder: (context, index) {
-                        final scale = currentPage == index ? 1.0 : 0.9;
-                        final rotationAngle = (currentPage - index) * 0.1;
-
-                        return TweenAnimationBuilder(
-                          tween: Tween(begin: scale, end: scale),
-                          duration: Duration(milliseconds: 300),
-                          builder: (context, double value, child) {
-                            return CryptoCard(
-                              coinName: cryptoCards[index]['coin']!,
-                              network: cryptoCards[index]['network']!,
-                              address: cryptoCards[index]['address']!,
-                              scale: value,
-                              rotationAngle: rotationAngle,
-                            );
-                          },
+                    child: Stack(
+                      children: List.generate(cryptoCards.length, (index) {
+                        if (index < currentCardIndex) {
+                          return Container(); // Hide cards that have been swiped
+                        }
+                        return Positioned(
+                          top: 20.0 + (index * 10),
+                          left: 20.0 + (index * 10),
+                          right: 20.0 + (index * 10),
+                          child: GestureDetector(
+                            onHorizontalDragEnd: (details) {
+                              if (details.primaryVelocity! > 0) {
+                                _swipeCard(Direction.right);
+                              } else if (details.primaryVelocity! < 0) {
+                                _swipeCard(Direction.left);
+                              }
+                            },
+                            child: TweenAnimationBuilder(
+                              tween: Tween<double>(
+                                  begin: 1.0,
+                                  end: index == currentCardIndex ? 1.0 : 0.9),
+                              duration: Duration(milliseconds: 300),
+                              builder: (context, double value, child) {
+                                return Transform.scale(
+                                  scale: value,
+                                  child: CryptoCard(
+                                    coinName: cryptoCards[index]['coin']!,
+                                    network: cryptoCards[index]['network']!,
+                                    address: cryptoCards[index]['address']!,
+                                    rotationAngle: 0.0,
+                                    scale: 1.0,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         );
-                      },
+                      }).reversed.toList(),
                     ),
                   ),
+                  _buildQuickActions(),
                   _buildBottomBar(),
                 ],
               ),
@@ -80,6 +113,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ],
         ),
       ),
+    );
+  }
+
+  void _swipeCard(Direction direction) {
+    setState(() {
+      currentCardIndex++;
+    });
+    // Add swipe out animation based on direction if needed
+  }
+
+  Widget _buildQuickActions() {
+    return Container(
+      height: 100,
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildQuickActionTile(Icons.info, 'Details'),
+          _buildQuickActionTile(Icons.block, 'Block'),
+          _buildQuickActionTile(Icons.refresh, 'Refresh'),
+          _buildQuickActionTile(Icons.delete, 'Delete'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionTile(IconData icon, String label) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 25,
+          backgroundColor: Colors.blueAccent,
+          child: Icon(icon, color: Colors.white),
+        ),
+        SizedBox(height: 5),
+        Text(label, style: TextStyle(color: Colors.white)),
+      ],
     );
   }
 
@@ -103,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       backgroundColor: Colors.transparent,
       elevation: 0,
       title: Text(
-        'Crypto Cards',
+        'Bankcryptt',
         style: TextStyle(
           color: Colors.white,
           fontSize: 24,
