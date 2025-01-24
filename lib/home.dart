@@ -26,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _scaleAnimation;
   double _dragOffset = 0;
   bool _isBottomExpanded = false;
+  final Map<String, List<Map<String, String>>> removedCards = {};
+  double _bottomSheetHeight = 100;
+  double _cardSectionScale = 1.0;
 
   List<CryptoSection> cryptoSections = [
     CryptoSection(crypto: 'BTC', wallets: [
@@ -98,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Scaffold(
       backgroundColor: Colors.black,
       body: AnimatedContainer(
-        duration: Duration(milliseconds: 500),
+        duration: Duration(milliseconds: 300),
         child: Stack(
           children: [
             _buildBackground(),
@@ -107,14 +110,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 children: [
                   _buildAppBar(),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: cryptoSections.length,
-                      itemBuilder: (context, sectionIndex) {
-                        return _buildCryptoSection(sectionIndex);
-                      },
+                    child: AnimatedScale(
+                      scale: _cardSectionScale,
+                      duration: Duration(milliseconds: 300),
+                      child: ListView.builder(
+                        itemCount: cryptoSections.length,
+                        itemBuilder: (context, sectionIndex) {
+                          return _buildCryptoSection(sectionIndex);
+                        },
+                      ),
                     ),
                   ),
-                  _buildBottomSheet(),
+                  _buildExpandableBottomSheet(),
                 ],
               ),
             ),
@@ -126,62 +133,84 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildCryptoSection(int sectionIndex) {
     final section = cryptoSections[sectionIndex];
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0),
+    return Container(
+      height: 250, // Reduced height for compactness
+      margin: EdgeInsets.symmetric(vertical: 5.0), // Reduced margin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Text(
-              section.crypto,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  section.crypto,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.refresh, color: Colors.white),
+                  onPressed: () => _restoreRemovedCards(section.crypto),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: 10),
-          Container(
-            height: 220,
+          Expanded(
             child: Stack(
+              clipBehavior: Clip.none,
               children: List.generate(section.wallets.length, (index) {
-                if (index < 0) return Container();
                 return Positioned(
-                  top: index * 15.0,
-                  left: index * 10.0,
-                  right: index * 10.0,
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: (details) =>
-                        _handleDragUpdate(details, sectionIndex, index),
-                    onHorizontalDragEnd: (details) =>
-                        _handleDragEnd(details, sectionIndex, index),
-                    child: AnimatedBuilder(
-                      animation: _slideController,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(_dragOffset, 0),
-                          child: Opacity(
-                            opacity: 1.0 - (_slideController.value * 0.5),
-                            child: CryptoCard(
-                              coinName: section.wallets[index]['coin']!,
-                              network: section.wallets[index]['network']!,
-                              address: section.wallets[index]['address']!,
-                              rotationAngle: 0.0,
-                              scale: 1.0,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  top: 0,
+                  left: 20 + (index * 8.0), // Reduced offset for compactness
+                  right: 20 - (index * 8.0),
+                  child: _buildDraggableCard(section, index, sectionIndex),
                 );
               }).reversed.toList(),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDraggableCard(
+      CryptoSection section, int index, int sectionIndex) {
+    return AnimatedBuilder(
+      animation: _slideController,
+      builder: (context, child) {
+        double slide = _dragOffset;
+        if (index == currentCardIndex) {
+          slide = _dragOffset;
+        }
+        return Transform.translate(
+          offset: Offset(slide, 0),
+          child: Transform(
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateZ((_dragOffset / 3000) * pi),
+            child: Opacity(
+              opacity: 1.0 - ((_dragOffset.abs() / 300).clamp(0.0, 0.5)),
+              child: GestureDetector(
+                onHorizontalDragUpdate: (details) =>
+                    _handleDragUpdate(details, sectionIndex, index),
+                onHorizontalDragEnd: (details) =>
+                    _handleDragEnd(details, sectionIndex, index),
+                child: CryptoCard(
+                  coinName: section.wallets[index]['coin']!,
+                  network: section.wallets[index]['network']!,
+                  address: section.wallets[index]['address']!,
+                  rotationAngle: 0.0,
+                  scale: 1.0 - (index * 0.05),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -195,17 +224,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _handleDragEnd(DragEndDetails details, int sectionIndex, int cardIndex) {
     final velocity = details.velocity.pixelsPerSecond.dx;
     if (velocity.abs() > 1000 || _dragOffset.abs() > 100) {
-      _animateCardOut(velocity > 0 ? Direction.right : Direction.left,
-          sectionIndex, cardIndex);
+      _animateCardOut(
+        velocity > 0 ? Direction.right : Direction.left,
+        sectionIndex,
+        cardIndex,
+      );
     } else {
       _resetCard();
     }
   }
 
   void _animateCardOut(Direction direction, int sectionIndex, int cardIndex) {
+    final targetX = direction == Direction.right ? 500.0 : -500.0;
+
+    Animation<double> slideOutAnimation = Tween<double>(
+      begin: _dragOffset,
+      end: targetX,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    slideOutAnimation.addListener(() {
+      setState(() {
+        _dragOffset = slideOutAnimation.value;
+      });
+    });
+
     _slideController.forward().then((_) {
       setState(() {
-        cryptoSections[sectionIndex].wallets.removeAt(cardIndex);
+        final removedCard =
+            cryptoSections[sectionIndex].wallets.removeAt(cardIndex);
+        if (!removedCards.containsKey(cryptoSections[sectionIndex].crypto)) {
+          removedCards[cryptoSections[sectionIndex].crypto] = [];
+        }
+        removedCards[cryptoSections[sectionIndex].crypto]!.add(removedCard);
         _dragOffset = 0;
       });
       _slideController.reset();
@@ -216,22 +269,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _dragOffset = 0);
   }
 
-  Widget _buildBottomSheet() {
+  void _restoreRemovedCards(String crypto) {
+    if (removedCards.containsKey(crypto) && removedCards[crypto]!.isNotEmpty) {
+      setState(() {
+        final sectionIndex =
+            cryptoSections.indexWhere((s) => s.crypto == crypto);
+        if (sectionIndex != -1) {
+          cryptoSections[sectionIndex]
+              .wallets
+              .add(removedCards[crypto]!.removeLast());
+        }
+      });
+    }
+  }
+
+  Widget _buildExpandableBottomSheet() {
     return GestureDetector(
       onVerticalDragUpdate: (details) {
-        if (details.delta.dy < -10 && !_isBottomExpanded) {
-          setState(() {
-            _isBottomExpanded = true;
-          });
-        } else if (details.delta.dy > 10 && _isBottomExpanded) {
-          setState(() {
-            _isBottomExpanded = false;
-          });
-        }
+        setState(() {
+          _bottomSheetHeight -= details.delta.dy;
+          _bottomSheetHeight = _bottomSheetHeight.clamp(100.0, 400.0);
+          _cardSectionScale = 1.0 - ((_bottomSheetHeight - 100) / 600);
+        });
       },
       child: AnimatedContainer(
         duration: Duration(milliseconds: 300),
-        height: _isBottomExpanded ? 250 : 100,
+        height: _bottomSheetHeight,
         decoration: BoxDecoration(
           color: Colors.blueGrey[900]?.withOpacity(0.8),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -247,9 +310,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            _isBottomExpanded
-                ? _buildExpandedQuickActions()
-                : _buildQuickActions(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: _bottomSheetHeight > 200
+                    ? _buildExpandedQuickActions()
+                    : _buildQuickActions(),
+              ),
+            ),
           ],
         ),
       ),
