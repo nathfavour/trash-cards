@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final Map<String, List<Map<String, String>>> removedCards = {};
   double _bottomSheetHeight = 100;
   double _cardSectionScale = 1.0;
+  int currentCardIndex = 0; // Added property
 
   List<CryptoSection> cryptoSections = [
     CryptoSection(crypto: 'BTC', wallets: [
@@ -184,6 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       builder: (context, child) {
         double slide = _dragOffset;
         if (index == currentCardIndex) {
+          // Now valid
           slide = _dragOffset;
         }
         return Transform.translate(
